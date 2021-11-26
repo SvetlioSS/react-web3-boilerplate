@@ -10,10 +10,13 @@ import Column from './components/Column';
 import Wrapper from './components/Wrapper';
 import Header from './components/Header';
 import Loader from './components/Loader';
+import Button from './components/Button';
 import ConnectButton from './components/ConnectButton';
 
 import { Web3Provider } from '@ethersproject/providers';
 import { getChainData } from './helpers/utilities';
+import { US_ELECTION_ADDRESS, US_ELECTION } from './constants';
+import { getContract } from './helpers/ethers';
 
 const SLayout = styled.div`
   position: relative;
@@ -63,6 +66,7 @@ const App = () => {
   const [result, setResult] = useState<any>();
   const [libraryContract, setLibraryContract] = useState<any>(null);
   const [info, setInfo] = useState<any>(null);
+  const [currentLeader, setCurrentLeader] = useState<number>(-1);
 
   useEffect(() => {
     createWeb3Modal();
@@ -81,19 +85,42 @@ const App = () => {
     })
   }
 
+  const submitElectionResult = async () => {
+    const dataArr = [
+      'Idaho',
+      51,
+      50,
+      24
+	  ];
+
+    setFetching(true);
+		const transaction = await libraryContract.submitStateResult(dataArr);
+		const transactionReceipt = await transaction.wait();
+    setFetching(false);
+		if (transactionReceipt.status !== 1) {
+			// React to failure
+		}	
+  };
+  
+  const getCurrentLeader = async () => {
+    const currentLeader = await libraryContract.currentLeader();
+    setCurrentLeader(currentLeader);
+  };
+
   const onConnect = async () => {
     const provider = await web3Modal.connect();
     setProvider(provider);
 
     const library = new Web3Provider(provider);
-
     const network = await library.getNetwork();
-
     const address = provider.selectedAddress ? provider.selectedAddress : provider?.accounts[0];
+    const electionContract = getContract(US_ELECTION_ADDRESS, US_ELECTION.abi, library, address);
+    
     setLibrary(library);
     setChainId(network.chainId);
     setAddress(address);
     setConnected(true);
+    setLibraryContract(electionContract);
     
     await subscribeToProviderEvents(provider);
   };
@@ -194,6 +221,11 @@ const App = () => {
             </Column>
           ) : (
               <SLanding center>
+                <div>
+                  {currentLeader > -1 ? `Current Leader is: ${currentLeader}` : "Unset"}
+                </div>
+                <Button onClick={getCurrentLeader}>Current Leader</Button>
+                <Button onClick={submitElectionResult}>Submit Results</Button>
                 {!connected && <ConnectButton onClick={onConnect} />}
               </SLanding>
             )}
